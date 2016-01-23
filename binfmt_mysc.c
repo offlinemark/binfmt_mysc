@@ -9,7 +9,8 @@ MODULE_LICENSE("GPL");
 
 static struct kobject *mysc_kobj;
 struct binfmt {
-    char str[256];
+    char magic[256];
+    char interp[256];
     struct list_head list;
 };
 
@@ -18,16 +19,34 @@ LIST_HEAD(binfmts);
 static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
         char *buf)
 {
+    char *curr = buf;
+    ssize_t bytes_written = 0;
+
     struct binfmt *bf;
     int i = 0;
     list_for_each_entry(bf, &binfmts, list) {
-        printk(KERN_INFO "yo %d bf->str: %s\n", i, bf->str);
+        bytes_written += scnprintf(curr+bytes_written, PAGE_SIZE-bytes_written, "%d: %s %s\n", i, bf->magic, bf->interp);
+        if (bytes_written == PAGE_SIZE-1)
+            return bytes_written;
+        printk(KERN_INFO "yo %d bf->str: %s\n", i, bf->interp);
         i++;
     }
-    return scnprintf(buf, PAGE_SIZE, "hello world ugh\n");
+    return bytes_written;
+    /* return scnprintf(buf, PAGE_SIZE, "hello world ugh\n"); */
 }
 
-static char shitbuf[8];
+static ssize_t hexpairs_to_buf(char *const buf, size_t bufsz, const char *hexpairs, size_t hexsz)
+{
+    strcpy(buf, "SPYM\x00");
+    return 0;
+    // TODO actually implement. "aabbccdd" => \xaa\xbb\xcc\xdd
+    /* if (hexsz % 2) */
+    /*     return -EINVAL; */
+    /* for (size_t i = 0; i < hexsz; i+= 2) { */
+
+    /* } */
+
+}
 
 static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
                      const char *buf, size_t count)
@@ -37,9 +56,24 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
     if (!bf)
         return -ENOMEM;
 
+    INIT_LIST_HEAD(&bf->list);
+
     printk(KERN_INFO "yo dat size was %u\n", count);
-    scnprintf(bf->str, sizeof(bf->str), "%s", buf);
-    printk(KERN_INFO "bf->str: %s\n", bf->str);
+
+    char *colon = strnchr(buf, count, ':');
+    if (!colon) {
+        return -EINVAL;
+    }
+
+    hexpairs_to_buf(bf->magic, sizeof(bf->magic), buf, colon - buf);
+    int interpsz = scnprintf(bf->interp, sizeof(bf->interp), "%s", colon+1);
+    if (bf->interp[interpsz-1] == '\n') {
+        bf->interp[interpsz-1] = '\0';
+    }
+
+
+    printk(KERN_INFO "bf->magic: %s\n", bf->magic);
+    printk(KERN_INFO "bf->intepr: %s\n", bf->interp);
 
     list_add_tail(&bf->list, &binfmts);
     printk(KERN_INFO "added to list\n");
