@@ -19,7 +19,7 @@ LIST_HEAD(binfmts);
 
 static void dump(unsigned char *buf) {
     while (*buf) {
-        printk(KERN_INFO "%x", *buf++);
+        printk(KERN_INFO "%x\n", *buf++);
     }
     printk(KERN_INFO "\n");
 }
@@ -93,6 +93,12 @@ static ssize_t hexpairs_to_buf(unsigned char *const buf, size_t bufsz, char *con
         printk(KERN_INFO "FUCK %x\n", (unsigned char)newchar);
     }
     *b = '\0';
+    printk(KERN_INFO "FFFFFF\n");
+    printk(KERN_INFO "0 %x\n", buf[0]);
+    printk(KERN_INFO "1 %x\n", buf[1]);
+    printk(KERN_INFO "2 %x\n", buf[2]);
+    printk(KERN_INFO "3 %x\n", buf[3]);
+    dump(buf);
 
     return b-buf+1;
 
@@ -128,7 +134,12 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
     }
 
 
-    printk(KERN_INFO "bf->magic: ");
+    printk(KERN_INFO "bf->magic: \n");
+    printk(KERN_INFO "FFFFFF\n");
+    printk(KERN_INFO "0 %x\n", bf->magic[0]);
+    printk(KERN_INFO "1 %x\n", bf->magic[1]);
+    printk(KERN_INFO "2 %x\n", bf->magic[2]);
+    printk(KERN_INFO "3 %x\n", bf->magic[3]);
     dump(bf->magic);
     /* unsigned char *shit = bf->magic; */
     /* while (shit) { */
