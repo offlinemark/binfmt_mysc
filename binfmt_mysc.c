@@ -18,7 +18,13 @@ LIST_HEAD(binfmts);
 static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
         char *buf)
 {
-    return sprintf(buf, "hello world ugh\n");
+    struct binfmt *bf;
+    int i = 0;
+    list_for_each_entry(bf, &binfmts, list) {
+        printk(KERN_INFO "yo %d bf->str: %s\n", i, bf->str);
+        i++;
+    }
+    return scnprintf(buf, PAGE_SIZE, "hello world ugh\n");
 }
 
 static char shitbuf[8];
@@ -35,7 +41,7 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
     scnprintf(bf->str, sizeof(bf->str), "%s", buf);
     printk(KERN_INFO "bf->str: %s\n", bf->str);
 
-    list_add(&bf->list, &binfmts);
+    list_add_tail(&bf->list, &binfmts);
     printk(KERN_INFO "added to list\n");
 
     return count;
@@ -82,6 +88,7 @@ static void exit_mysc_binfmt(void)
 {
     printk(KERN_INFO "Unregistering mysc format!\n");
     kobject_put(mysc_kobj);
+    // TODO free memory
     /* unregister_binfmt(&spym_format); */
 }
 
