@@ -21,7 +21,7 @@ static void dump(unsigned char *buf) {
     while (*buf) {
         printk(KERN_INFO "%x\n", *buf++);
     }
-    printk(KERN_INFO "\n");
+    printk(KERN_INFO "-- end --\n");
 }
 
 static size_t print_bf_struct(const int i, char *const buf, struct binfmt *bf)
@@ -29,12 +29,12 @@ static size_t print_bf_struct(const int i, char *const buf, struct binfmt *bf)
     size_t bytes_written = 0;
     bytes_written += scnprintf(buf, PAGE_SIZE, "%d: ", i);
     unsigned char *m = bf->magic;
-    while (m) {
+    while (*m) {
         bytes_written += scnprintf(buf+bytes_written, PAGE_SIZE-bytes_written, "%x", *m++);
         if (bytes_written == PAGE_SIZE-1)
             return bytes_written;
     }
-    bytes_written += scnprintf(buf+bytes_written, PAGE_SIZE-bytes_written, "%s\n", bf->interp);
+    bytes_written += scnprintf(buf+bytes_written, PAGE_SIZE-bytes_written, " -> %s\n", bf->interp);
     return bytes_written;
 }
 
@@ -47,7 +47,9 @@ static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
     struct binfmt *bf;
     int i = 0;
     list_for_each_entry(bf, &binfmts, list) {
-        bytes_written += print_bf_struct(i, curr, bf);
+        printk(KERN_INFO "omg\n");
+        dump(bf->magic);
+        bytes_written += print_bf_struct(i, curr+bytes_written, bf);
         if (bytes_written == PAGE_SIZE-1)
             return bytes_written;
         printk(KERN_INFO "yo %d bf->str: %s\n", i, bf->interp);
