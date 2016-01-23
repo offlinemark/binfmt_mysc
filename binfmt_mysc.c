@@ -2,10 +2,18 @@
 #include <linux/binfmts.h>
 #include <linux/fs.h>
 #include <linux/kobject.h>
+#include <linux/list.h>
+#include <linux/slab.h>
 
 MODULE_LICENSE("GPL");
 
 static struct kobject *mysc_kobj;
+struct binfmt {
+    char str[256];
+    struct list_head list;
+};
+
+LIST_HEAD(binfmts);
 
 static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
         char *buf)
@@ -13,18 +21,23 @@ static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
     return sprintf(buf, "hello world ugh\n");
 }
 
-static char shitbuf[256];
+static char shitbuf[8];
 
 static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
                      const char *buf, size_t count)
 {
+    struct binfmt *bf;
+    bf = kmalloc(sizeof(*bf), GFP_KERNEL);
+    if (!bf)
+        return -ENOMEM;
+
     printk(KERN_INFO "yo dat size was %u\n", count);
-    if (count > 10) {
-        printk(KERN_INFO "too big tho\n");
-        return count;
-    }
-    scnprintf(shitbuf, 10, "%s", buf);
-    printk(KERN_INFO "shitbuf: %s\n", shitbuf);
+    scnprintf(bf->str, sizeof(bf->str), "%s", buf);
+    printk(KERN_INFO "bf->str: %s\n", bf->str);
+
+    list_add(&bf->list, &binfmts);
+    printk(KERN_INFO "added to list\n");
+
     return count;
 }
 
