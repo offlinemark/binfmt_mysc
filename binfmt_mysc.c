@@ -12,6 +12,7 @@ MODULE_LICENSE("GPL");
 
 static struct kobject *mysc_kobj;
 struct binfmt {
+    /* we really shouldn't use static buffers */
     unsigned char magic[256];
     unsigned char interp[256];
     struct list_head list;
@@ -71,6 +72,7 @@ static ssize_t hexpairs_to_buf(unsigned char *const buf, size_t bufsz, char *con
     if (hexsz % 2)
         goto err;
 
+    /* TODO do this in one pass */
     for (i = 0; i < hexsz; i++) {
         if(!isxdigit(hexpairs[i])) {
             goto err;
@@ -110,6 +112,7 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
     if (!bf)
         return -ENOMEM;
 
+    /* i think this is not necessary */
     INIT_LIST_HEAD(&bf->list);
 
     colon = strnchr(buf, count, ':');
@@ -129,6 +132,7 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
     return count;
 }
 
+/* 666 for development ease */
 static struct kobj_attribute mysc_attribute = __ATTR(mysc, 0666, mysc_show, mysc_store);
 
 static int create_file_interface(void)
@@ -166,6 +170,7 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
 
     char *last_arg = bprm->interp;
     //special case for java, we need to remove that pesky .class extension
+    //this is buggy
     if (memcmp(bprm->buf, JAVA_MAGIC, 4) == 0) {
         if (strncmp(last_arg, "./", 2)==0) {
             last_arg += 2;
@@ -175,6 +180,9 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
             *period = '\0';
         }
     }
+
+    /* this is stolen from fs/bintmf_script.c */
+
     retval = copy_strings_kernel(1, &last_arg, bprm);
     if (retval){
         return retval;
@@ -191,17 +199,16 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
 
     retval = bprm_change_interp((char *)bf->interp, bprm);
     if (retval)
-            return retval;
+        return retval;
 
-    /* Final preparations */
     file = open_exec(bf->interp);
     if (IS_ERR(file))
-            return PTR_ERR(file);
+        return PTR_ERR(file);
 
     bprm->file = file;
     retval = prepare_binprm(bprm);
     if (retval < 0)
-            return retval;
+        return retval;
 
     return search_binary_handler(bprm);
 }
