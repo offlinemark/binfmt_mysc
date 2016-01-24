@@ -33,9 +33,9 @@ static void dumpn(unsigned char *buf, size_t n) {
 
 static size_t print_bf_struct(const int i, char *const buf, struct binfmt *bf)
 {
+    unsigned char *m = bf->magic;
     size_t bytes_written = 0;
     bytes_written += scnprintf(buf, PAGE_SIZE, "%d: ", i);
-    unsigned char *m = bf->magic;
     while (*m) {
         bytes_written += scnprintf(buf+bytes_written, PAGE_SIZE-bytes_written, "%x", *m++);
         if (bytes_written == PAGE_SIZE-1)
@@ -116,7 +116,10 @@ err:
 static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
                      const char *buf, size_t count)
 {
+    char *colon;
+    int interpsz;
     struct binfmt *bf;
+    ssize_t ret;
     bf = kmalloc(sizeof(*bf), GFP_KERNEL);
     if (!bf)
         return -ENOMEM;
@@ -125,16 +128,16 @@ static ssize_t mysc_store(struct kobject *dev, struct kobj_attribute *attr,
 
     printk(KERN_INFO "yo dat size was %u\n", count);
 
-    char *colon = strnchr(buf, count, ':');
+    colon = strnchr(buf, count, ':');
     if (!colon) {
         return -EINVAL;
     }
 
     printk(KERN_INFO "ABOUT TO CALL HEXPAIRS %s %u %u\n", buf, colon - buf, sizeof(bf->magic));
-    ssize_t ret = hexpairs_to_buf(bf->magic, sizeof(bf->magic), buf, colon - buf);
+    ret = hexpairs_to_buf(bf->magic, sizeof(bf->magic), buf, colon - buf);
     if (ret < 0)
         return ret;
-    int interpsz = scnprintf(bf->interp, sizeof(bf->interp), "%s", colon+1);
+    interpsz = scnprintf(bf->interp, sizeof(bf->interp), "%s", colon+1);
     if (bf->interp[interpsz-1] == '\n') {
         bf->interp[interpsz-1] = '\0';
     }
@@ -163,12 +166,13 @@ static struct kobj_attribute mysc_attribute = __ATTR(mysc, 0666, mysc_show, mysc
 
 static int create_file_interface(void)
 {
+    int ret;
     // register fs attributes
     mysc_kobj = kobject_create_and_add("binfmt_mysc", kernel_kobj);
     if (!mysc_kobj)
         return -ENOMEM;
 
-    int ret = sysfs_create_file(mysc_kobj, &mysc_attribute.attr);
+    ret = sysfs_create_file(mysc_kobj, &mysc_attribute.attr);
     if (ret) {
         kobject_put(mysc_kobj); // release
         return ret;
@@ -203,33 +207,45 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
 
     /* ok it was legit, let's exec that interp they registered */
 
-    printk(KERN_INFO "last arg %s\n", bf->interp);
+    printk(KERN_INFO "last arg %s\n", bprm->interp);
     retval = copy_strings_kernel(1, &bprm->interp, bprm);
-    if (retval)
+    if (retval){
             return retval;
+    }
 
     bprm->argc++;
 
-    /* printk(KERN_INFO "first arg %s\n", bf->interp); */
+    printk(KERN_INFO "first arg %s\n", bf->interp);
+    char *wtf = bf->interp;
     /* retval = copy_strings_kernel(1, &bf->interp, bprm); */
-    /* if (retval) */
-    /*         return retval; */
-    /* bprm->argc++; */
+    retval = copy_strings_kernel(1, &wtf, bprm);
+    if (retval){
+        printk(KERN_INFO "fuckk why did this fail!!!!\n");
+            return retval;
+    }
+    bprm->argc++;
+
+    printk(KERN_INFO "got stack all set \n");
 
     retval = bprm_change_interp((char *)bf->interp, bprm);
     if (retval)
             return retval;
 
+    printk(KERN_INFO "got change interp all set \n");
 
     /* Final preparations */
     file = open_exec(bf->interp);
     if (IS_ERR(file))
             return PTR_ERR(file);
 
+    printk(KERN_INFO "got open exec all set \n");
+
     bprm->file = file;
     retval = prepare_binprm(bprm);
     if (retval < 0)
             return retval;
+
+    printk(KERN_INFO "got prepare binprm all set \n");
 
     return search_binary_handler(bprm);
 }
