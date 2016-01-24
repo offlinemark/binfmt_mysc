@@ -208,7 +208,26 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
     /* ok it was legit, let's exec that interp they registered */
 
     printk(KERN_INFO "last arg %s\n", bprm->interp);
-    retval = copy_strings_kernel(1, &bprm->interp, bprm);
+    char *last_arg = bprm->interp;
+    //special case for java, we need to remove that pesky .class extension
+#define JAVA_MAGIC "\xca\xfe\xba\xbe"
+    dumpn(bprm->buf, 4);
+    dumpn(JAVA_MAGIC, 4);
+    printk(KERN_INFO "omggggggg last arg: %s\n", last_arg);
+    /* printk(KERN_INFO "str: %s\n", last_arg); */
+    if (memcmp(bprm->buf, JAVA_MAGIC, 4) == 0) {
+        printk(KERN_INFO "in here?: %s\n", last_arg);
+        if (strncmp(last_arg, "./", 2)==0) {
+            last_arg += 2; 
+        }
+        char *period = strchr(last_arg+1, '.');
+        if (period) {
+            printk(KERN_INFO "FOUND DAT PERIOD\n");
+            *period = '\0';
+        }
+    }
+    printk(KERN_INFO "omggggggg last arg: %s\n", last_arg);
+    retval = copy_strings_kernel(1, &last_arg, bprm);
     if (retval){
             return retval;
     }
@@ -217,7 +236,7 @@ static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
 
     printk(KERN_INFO "first arg %s\n", bf->interp);
     char *wtf = bf->interp;
-    /* retval = copy_strings_kernel(1, &bf->interp, bprm); */
+    /* retval = copy_strings_kernel(1, &(bf->interp), bprm); */
     retval = copy_strings_kernel(1, &wtf, bprm);
     if (retval){
         printk(KERN_INFO "fuckk why did this fail!!!!\n");
