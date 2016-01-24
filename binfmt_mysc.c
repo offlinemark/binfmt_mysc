@@ -24,6 +24,13 @@ static void dump(unsigned char *buf) {
     printk(KERN_INFO "-- end --\n");
 }
 
+static void dumpn(unsigned char *buf, size_t n) {
+    while (*buf && n--) {
+        printk(KERN_INFO "%x\n", *buf++);
+    }
+    printk(KERN_INFO "-- end --\n");
+}
+
 static size_t print_bf_struct(const int i, char *const buf, struct binfmt *bf)
 {
     size_t bytes_written = 0;
@@ -60,9 +67,6 @@ static ssize_t mysc_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 static ssize_t hexpairs_to_buf(unsigned char *const buf, size_t bufsz, char *const hexpairs, size_t hexsz)
 {
-    /* strcpy(buf, "SPYM\x00"); */
-    /* return 0; */
-    // TODO actually implement. "aabbccdd" => \xaa\xbb\xcc\xdd
     unsigned char *b = buf;
     size_t i;
     printk(KERN_INFO "i am in hexpairs %s\n", hexpairs);
@@ -170,8 +174,84 @@ static int create_file_interface(void)
         return ret;
     }
 
-    return 0;
+    return ret;
 }
+
+static int load_mysc_bf(struct binfmt *bf, struct linux_binprm *bprm)
+{
+    int retval;
+    struct file *file;
+
+    printk(KERN_INFO "yo entering that load thing\n");
+
+    dumpn(bprm->buf, 8);
+    dumpn(bf->magic, 4);
+
+
+    /* magic! */
+    /* just doing offset 0 for now, maybe add other offsets later */
+    if (memcmp(bprm->buf, bf->magic, strlen(bf->magic))) {
+        printk(KERN_INFO "NO IT DID NOT MAGIC\n");
+            return -ENOEXEC;
+    }
+
+    printk(KERN_INFO "wow the magic passed\n");
+
+    retval = remove_arg_zero(bprm);
+    if (retval)
+            return retval;
+
+    /* ok it was legit, let's exec that interp they registered */
+
+    printk(KERN_INFO "last arg %s\n", bf->interp);
+    retval = copy_strings_kernel(1, &bprm->interp, bprm);
+    if (retval)
+            return retval;
+
+    bprm->argc++;
+
+    /* printk(KERN_INFO "first arg %s\n", bf->interp); */
+    /* retval = copy_strings_kernel(1, &bf->interp, bprm); */
+    /* if (retval) */
+    /*         return retval; */
+    /* bprm->argc++; */
+
+    retval = bprm_change_interp((char *)bf->interp, bprm);
+    if (retval)
+            return retval;
+
+
+    /* Final preparations */
+    file = open_exec(bf->interp);
+    if (IS_ERR(file))
+            return PTR_ERR(file);
+
+    bprm->file = file;
+    retval = prepare_binprm(bprm);
+    if (retval < 0)
+            return retval;
+
+    return search_binary_handler(bprm);
+}
+
+static int check_all_mysc(struct linux_binprm *bprm)
+{
+    int retval = -ENOEXEC;
+    struct binfmt *bf;
+    list_for_each_entry(bf, &binfmts, list) {
+        printk(KERN_INFO "processing %s\n", bf->interp);
+        retval = load_mysc_bf(bf, bprm); 
+        if (retval != -ENOEXEC) {
+            return retval;
+        }
+    }
+    return retval;
+}
+
+static struct linux_binfmt mysc_format = {
+    .module = THIS_MODULE,
+    .load_binary = check_all_mysc,
+};
 
 
 static int __init init_mysc_binfmt(void)
@@ -184,6 +264,7 @@ static int __init init_mysc_binfmt(void)
     if (ret)
         return ret;
 
+    register_binfmt(&mysc_format);
 
     return ret;
 }
@@ -201,6 +282,7 @@ static void destroy_list(struct list_head *head)
 static void exit_mysc_binfmt(void)
 {
     printk(KERN_INFO "Unregistering mysc format!\n");
+    unregister_binfmt(&mysc_format);
     kobject_put(mysc_kobj);
     destroy_list(&binfmts);
     // TODO free memory
